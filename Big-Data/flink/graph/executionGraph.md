@@ -1,8 +1,8 @@
 # ExecutionGraph
 
-jobManager在接收到submitJob消息之后，会先根据jobGraph生成ExecutionGraph。
+jobManager 在接收到 submitJob 消息之后，会先根据 jobGraph 生成 ExecutionGraph。
 
-1，使用ExecutionGraphBuilder的buildGraph方法生成ExecutionGraph；
+1，使用 ExecutionGraphBuilder 的 buildGraph 方法生成 ExecutionGraph；
 
 ```
 executionGraph = ExecutionGraphBuilder.buildGraph(
@@ -24,7 +24,7 @@ executionGraph = ExecutionGraphBuilder.buildGraph(
           log.logger)
 ```
 
-2，深入到buildGraph方法，如果Execution不存在，new一个新的Execution;
+2，深入到 buildGraph 方法，如果 Execution 不存在，new 一个新的 Execution;
 
 ```
 executionGraph = (prior != null) ? prior :
@@ -51,7 +51,7 @@ executionGraph.setQueuedSchedulingAllowed(jobGraph.getAllowQueuedScheduling());
 executionGraph.setJsonPlan(JsonPlanGenerator.generatePlan(jobGraph));
 ```
 
-4，attachJobGraph，生成Graph的节点和边
+4，attachJobGraph，生成 Graph 的节点和边
 
 ```
 // topologically sort the job vertices and attach the graph to the existing one
@@ -62,7 +62,7 @@ executionGraph.setJsonPlan(JsonPlanGenerator.generatePlan(jobGraph));
 		executionGraph.attachJobGraph(sortedTopology);
 ```
 
-深入到attachJobGraph方法，将JobVertex封装成ExecutionJobVertex,然后再用edge将节点连起来；
+深入到 attachJobGraph 方法，将 JobVertex 封装成 ExecutionJobVertex,然后再用 edge 将节点连起来；
 
 ```
 public void attachJobGraph(List<JobVertex> topologicallySorted) throws JobException {
@@ -86,7 +86,7 @@ public void attachJobGraph(List<JobVertex> topologicallySorted) throws JobExcept
 				createTimestamp);
             //把节点用edge相连
 			ejv.connectToPredecessors(this.intermediateResults);
-			
+
 			//ExecutionJobVertex建好并与input建立好edge,存入map中
 			ExecutionJobVertex previousTask = this.tasks.putIfAbsent(jobVertex.getID(), ejv);
 			for (IntermediateResult res : ejv.getProducedDataSets()) {
@@ -104,7 +104,7 @@ public void attachJobGraph(List<JobVertex> topologicallySorted) throws JobExcept
 
 IntermediateResult 对应一个 Job Edge 的输出下游结果集，一个 IntermediateResult 包含多个 IntermediateResultPartition，一个 IntermediateResultPartition 对应一个并行任务 ExecutionVertex 的输出结果。
 
-深入到connectToPredecessors，看看是如何连接ExecutionJobVertex的；
+深入到 connectToPredecessors，看看是如何连接 ExecutionJobVertex 的；
 
 ```
 public void connectToPredecessors(Map<IntermediateDataSetID, IntermediateResult> intermediateDataSets) throws JobException {
@@ -128,7 +128,7 @@ public void connectToPredecessors(Map<IntermediateDataSetID, IntermediateResult>
 	}
 ```
 
-深入到connectSource方法，
+深入到 connectSource 方法，
 
 ```
 public void connectSource(int inputNumber, IntermediateResult source, JobEdge edge, int consumerNumber) {
@@ -163,7 +163,7 @@ public void connectSource(int inputNumber, IntermediateResult source, JobEdge ed
 	}
 ```
 
-如果pattern是POINTWISE的话，看下connectPointwise方法：
+如果 pattern 是 POINTWISE 的话，看下 connectPointwise 方法：
 
 ```
 private ExecutionEdge[] connectPointwise(IntermediateResultPartition[] sourcePartitions, int inputNumber) {
@@ -223,7 +223,7 @@ private ExecutionEdge[] connectPointwise(IntermediateResultPartition[] sourcePar
 	}
 ```
 
-如果pattern是ALL_TO_ALL的话，看下connectAllToAll方法：
+如果 pattern 是 ALL_TO_ALL 的话，看下 connectAllToAll 方法：
 
 ```
 private ExecutionEdge[] connectAllToAll(IntermediateResultPartition[] sourcePartitions, int inputNumber) {
@@ -237,9 +237,9 @@ private ExecutionEdge[] connectAllToAll(IntermediateResultPartition[] sourcePart
 	}
 ```
 
-把所有的source都指向每个task。
+把所有的 source 都指向每个 task。
 
-5,配置checkpoint
+5,配置 checkpoint
 
 ```
 JobCheckpointingSettings snapshotSettings = jobGraph.getCheckpointingSettings();
@@ -262,9 +262,9 @@ JobCheckpointingSettings snapshotSettings = jobGraph.getCheckpointingSettings();
 		}
 ```
 
-checkpoint之后专门讨论
+checkpoint 之后专门讨论
 
-6,设置metrics
+6,设置 metrics
 
 ```
 metrics.gauge(RestartTimeGauge.METRIC_NAME, new RestartTimeGauge(executionGraph));
@@ -274,4 +274,3 @@ metrics.gauge(RestartTimeGauge.METRIC_NAME, new RestartTimeGauge(executionGraph)
 
 		executionGraph.getFailoverStrategy().registerMetrics(metrics);
 ```
-
