@@ -20,31 +20,31 @@ taskmanager即受到Submittask消息之后，提交任务的过程如下：（�
 ## 构建task，之前的的一切都是为了构建Task做准备。
 ```java
 val task = new Task(
-        jobInformation,
-        taskInformation,
-        tdd.getExecutionAttemptId,
-        tdd.getAllocationId,
-        tdd.getSubtaskIndex,
-        tdd.getAttemptNumber,
-        tdd.getProducedPartitions,
-        tdd.getInputGates,
-        tdd.getTargetSlotNumber,
-        memoryManager,
-        ioManager,
-        network,
-        bcVarManager,
-        taskStateManager,
-        taskManagerConnection,
-        inputSplitProvider,
-        checkpointResponder,
-        blobCache,
-        libCache,
-        fileCache,
-        config,
-        taskMetricGroup,
-        resultPartitionConsumableNotifier,
-        partitionStateChecker,
-        context.dispatcher)
+    jobInformation,
+    taskInformation,
+    tdd.getExecutionAttemptId,
+    tdd.getAllocationId,
+    tdd.getSubtaskIndex,
+    tdd.getAttemptNumber,
+    tdd.getProducedPartitions,
+    tdd.getInputGates,
+    tdd.getTargetSlotNumber,
+    memoryManager,
+    ioManager,
+    network,
+    bcVarManager,
+    taskStateManager,
+    taskManagerConnection,
+    inputSplitProvider,
+    checkpointResponder,
+    blobCache,
+    libCache,
+    fileCache,
+    config,
+    taskMetricGroup,
+    resultPartitionConsumableNotifier,
+    partitionStateChecker,
+    context.dispatcher)
 ```
 - 执行task.startTaskThread(),执行Task实例中的executingThread这个变量表示的线程.
 task作为这个线程的参数，Task实现了Runnable，所以最后执行的是Task的run方法。
@@ -145,7 +145,7 @@ taskManagerActions.updateTaskExecutionState(new TaskExecutionState(jobId, execut
 // 设置线程上下文类加载器
 executingThread.setContextClassLoader(userCodeClassLoader);
 // 真正的执行逻辑在这
-// 子类的具体执行过程以后再分析
+// AbstractInvokable子类的具体执行过程以后再分析
 invokable.invoke();
 // 再次检查状态
 if (isCanceledOrFailed()) {
@@ -169,3 +169,5 @@ else {
     throw new CancelTaskException();
 }
 ```
+
+AbstractInvokable子类的invoke方法之后具体介绍。
