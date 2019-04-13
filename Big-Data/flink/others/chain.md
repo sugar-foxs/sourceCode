@@ -123,7 +123,155 @@ RecordWriter.sendToTraget()
 	-> StreamPartitioner是流中使用的channel选择器。
 	-> OutputFlusher是一个线程，定时执行ResultPartitionWriter.flushAll,执行所有的子结果分区ResultSubPartition的flush方法,刷到buffer中。
 	-> 子结果分区有两种实现：PipelinedSubpartition，SpillableSubpartition。
--> 
+
+### operator的产生，存储在operatorChain中，由StreamTask产生
+```java
+		public OperatorChain(
+			StreamTask<OUT, OP> containingTask,
+			List<StreamRecordWriter<SerializationDelegate<StreamRecord<OUT>>>> streamRecordWriters) {
+
+		final ClassLoader userCodeClassloader = containingTask.getUserCodeClassLoader();
+		final StreamConfig configuration = containingTask.getConfiguration();
+
+		headOperator = configuration.getStreamOperator(userCodeClassloader);
+
+		// we read the chained configs, and the order of record writer registrations by output name
+		Map<Integer, StreamConfig> chainedConfigs = configuration.getTransitiveChainedTaskConfigsWithSelf(userCodeClassloader);
+
+		// create the final output stream writers
+		// we iterate through all the out edges from this job vertex and create a stream output
+		List<StreamEdge> outEdgesInOrder = configuration.getOutEdgesInOrder(userCodeClassloader);
+		Map<StreamEdge, RecordWriterOutput<?>> streamOutputMap = new HashMap<>(outEdgesInOrder.size());
+		this.streamOutputs = new RecordWriterOutput<?>[outEdgesInOrder.size()];
+
+		// from here on, we need to make sure that the output writers are shut down again on failure
+		boolean success = false;
+		try { 
+            //每个edge对应一个output
+			for (int i = 0; i < outEdgesInOrder.size(); i++) {
+				StreamEdge outEdge = outEdgesInOrder.get(i);
+
+				RecordWriterOutput<?> streamOutput = createStreamOutput(
+					streamRecordWriters.get(i),
+					outEdge,
+					chainedConfigs.get(outEdge.getSourceId()),
+					containingTask.getEnvironment());
+
+				this.streamOutputs[i] = streamOutput;
+				streamOutputMap.put(outEdge, streamOutput);
+			}
+
+			// we create the chain of operators and grab the collector that leads into the chain
+			List<StreamOperator<?>> allOps = new ArrayList<>(chainedConfigs.size());
+			this.chainEntryPoint = createOutputCollector(
+				containingTask,
+				configuration,
+				chainedConfigs,
+				userCodeClassloader,
+				streamOutputMap,
+				allOps);
+
+			if (headOperator != null) {
+				WatermarkGaugeExposingOutput<StreamRecord<OUT>> output = getChainEntryPoint();
+				headOperator.setup(containingTask, configuration, output);
+
+				headOperator.getMetricGroup().gauge(MetricNames.IO_CURRENT_OUTPUT_WATERMARK, output.getWatermarkGauge());
+			}
+
+			// 把headOperator加在list最后，因为createOutputCollector方法递归执行，所以operator在list中的顺序和逻辑顺序相反，之后执行的时候从list尾部开始执行
+			allOps.add(headOperator);
+
+			this.allOperators = allOps.toArray(new StreamOperator<?>[allOps.size()]);
+
+			success = true;
+		}
+		finally {
+			。。。
+		}
+
+	}
+```
+
+### createOutputCollector 看下如何递归调用的
+```java
+		private <T> WatermarkGaugeExposingOutput<StreamRecord<T>> createOutputCollector(
+			StreamTask<?, ?> containingTask,
+			StreamConfig operatorConfig,
+			Map<Integer, StreamConfig> chainedConfigs,
+			ClassLoader userCodeClassloader,
+			Map<StreamEdge, RecordWriterOutput<?>> streamOutputs,
+			List<StreamOperator<?>> allOperators) {
+		List<Tuple2<WatermarkGaugeExposingOutput<StreamRecord<T>>, StreamEdge>> allOutputs = new ArrayList<>(4);
+
+		// create collectors for the network outputs
+		for (StreamEdge outputEdge : operatorConfig.getNonChainedOutputs(userCodeClassloader)) {
+			@SuppressWarnings("unchecked")
+			RecordWriterOutput<T> output = (RecordWriterOutput<T>) streamOutputs.get(outputEdge);
+
+			allOutputs.add(new Tuple2<>(output, outputEdge));
+		}
+
+		// 递归截止条件是:最后一个operator的operatorConfig.getChainedOutputs为空
+		for (StreamEdge outputEdge : operatorConfig.getChainedOutputs(userCodeClassloader)) {
+            // 获得下游operator id
+			int outputId = outputEdge.getTargetId();
+            // 获得下游operator的streamConfig
+			StreamConfig chainedOpConfig = chainedConfigs.get(outputId);
+            // 根据下游operator的config创建ChainedOperator，返回chain的output
+			WatermarkGaugeExposingOutput<StreamRecord<T>> output = createChainedOperator(
+				containingTask,
+				chainedOpConfig,
+				chainedConfigs,
+				userCodeClassloader,
+				streamOutputs,
+				allOperators,
+				outputEdge.getOutputTag());
+			allOutputs.add(new Tuple2<>(output, outputEdge));
+		}
+	}
+```
+
+### createChainedOperator
+```java
+	private <IN, OUT> WatermarkGaugeExposingOutput<StreamRecord<IN>> createChainedOperator(
+			StreamTask<?, ?> containingTask,
+			StreamConfig operatorConfig,
+			Map<Integer, StreamConfig> chainedConfigs,
+			ClassLoader userCodeClassloader,
+			Map<StreamEdge, RecordWriterOutput<?>> streamOutputs,
+			List<StreamOperator<?>> allOperators,
+			OutputTag<IN> outputTag) {
+		// create the output that the operator writes to first. this may recursively create more operators
+		WatermarkGaugeExposingOutput<StreamRecord<OUT>> chainedOperatorOutput = createOutputCollector(
+			containingTask,
+			operatorConfig,
+			chainedConfigs,
+			userCodeClassloader,
+			streamOutputs,
+			allOperators);
+
+		// now create the operator and give it the output collector to write its output to
+		OneInputStreamOperator<IN, OUT> chainedOperator = operatorConfig.getStreamOperator(userCodeClassloader);
+
+		chainedOperator.setup(containingTask, operatorConfig, chainedOperatorOutput);
+
+		allOperators.add(chainedOperator);
+
+		WatermarkGaugeExposingOutput<StreamRecord<IN>> currentOperatorOutput;
+		if (containingTask.getExecutionConfig().isObjectReuseEnabled()) {
+			currentOperatorOutput = new ChainingOutput<>(chainedOperator, this, outputTag);
+		}
+		else {
+			TypeSerializer<IN> inSerializer = operatorConfig.getTypeSerializerIn1(userCodeClassloader);
+			currentOperatorOutput = new CopyingChainingOutput<>(chainedOperator, inSerializer, outputTag, this);
+		}
+
+		chainedOperator.getMetricGroup().gauge(MetricNames.IO_CURRENT_INPUT_WATERMARK, currentOperatorOutput.getWatermarkGauge());
+		chainedOperator.getMetricGroup().gauge(MetricNames.IO_CURRENT_OUTPUT_WATERMARK, chainedOperatorOutput.getWatermarkGauge());
+
+		return currentOperatorOutput;
+	}
+```
 
 
 
