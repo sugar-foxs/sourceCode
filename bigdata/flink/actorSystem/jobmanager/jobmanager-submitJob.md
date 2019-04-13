@@ -2,10 +2,10 @@
 
 先将submitJob的主要步骤总结写在开头，然后一步步分析。
 
-- 1，通过JobGraph生成ExecutionGraph;
-- 2，恢复状态CheckpointedState，或者Savepoint;
+- 1，通过JobGraph生成ExecutionGraph；
+- 2，恢复状态CheckpointedState，或者Savepoint；
 - 3，提交Execution给Scheduler进行调度；
-  - 3.1 获取ExecutionGraph中所有vertice，并为其分配slot资源;
+  - 3.1 获取ExecutionGraph中所有vertice，并为其分配slot资源；
   - 3.2 通知TaskManager，将每个vertice部署在分配好的资源中。
 
 下面一步一步分析：
@@ -14,7 +14,7 @@
 
 - jobManager接收到SubmitJob消息后，生成了一个jobInfo对象装载job信息，然后调用submitJob方法。
 
-```
+```java
 case SubmitJob(jobGraph, listeningBehaviour) =>
       val client = sender()
       val jobInfo = new JobInfo(client, listeningBehaviour, System.currentTimeMillis(),
@@ -24,7 +24,7 @@ case SubmitJob(jobGraph, listeningBehaviour) =>
 
 - 深入submitJob方法，首先判断jobGraph是否为空，如果为空，返回JobResultFailure消息；
 
-```
+```java
 if (jobGraph == null) {
       jobInfo.notifyClients(
         decorateMessage(JobResultFailure(
@@ -35,14 +35,14 @@ if (jobGraph == null) {
 
 - 接着向类库缓存管理器注册该Job相关的库文件、类路径；必须确保该步骤在第一步执行，因为后续产生任何异常可以确保上传的类库和Jar等成功从类库缓存管理器移除。
 
-```
+```java
 libraryCacheManager.registerJob(
             jobGraph.getJobID, jobGraph.getUserJarBlobKeys, jobGraph.getClasspaths)
 ```
 
 - 接下来是获得用户代码的类加载器classLoader以及发生失败时的重启策略restartStrategy；
 
-```
+```java
 val userCodeLoader = libraryCacheManager.getClassLoader(jobGraph.getJobID)
 ...
 val restartStrategy =
@@ -58,7 +58,7 @@ val restartStrategy =
 
 - 接着，获取ExecutionGraph对象的实例。首先尝试从缓存中查找，如果缓存中存在则直接返回，否则直接创建然后加入缓存；
 
-```
+```java
 val registerNewGraph = currentJobs.get(jobGraph.getJobID) match {
     case Some((graph, currentJobInfo)) =>
     	executionGraph = graph
@@ -100,7 +100,7 @@ if (registerNewGraph) {
 
 - 接着根据配置生成带有graphManagerPlugin的graphManager（**后面需要用到这个**），和operationLogManager；
 
-```
+```java
 val conf = new Configuration(jobGraph.getJobConfiguration)
 conf.addAll(jobGraph.getSchedulingConfiguration)
 val graphManagerPlugin = GraphManagerPluginFactory.createGraphManagerPlugin(
@@ -116,14 +116,14 @@ operationLogManager.start()
 
 - 注册Job状态变化的事件回调给jobmanager自己;
 
-```
+```java
 executionGraph.registerJobStatusListener(
           new StatusListenerMessenger(self, leaderSessionID.orNull))
 ```
 
 - 注册整个job状态变化事件回调和单个task状态变化回调给client；
 
-```
+```java
 jobInfo.clients foreach {
     // the sender wants to be notified about state changes
     case (client, ListeningBehaviour.EXECUTION_RESULT_AND_STATE_CHANGES) =>
@@ -140,7 +140,7 @@ jobInfo.clients foreach {
 
 - 如果是恢复的job，从最新的checkpoint中恢复；
 
-```
+```java
 if (isRecovery) {
     // this is a recovery of a master failure (this master takes over)
     executionGraph.restoreLatestCheckpointedState(false, false)
@@ -149,7 +149,7 @@ if (isRecovery) {
 
 - 或者获取savepoint配置，如果配置了savepoint，便从savepoint中恢复；
 
-```
+```java
 val savepointSettings = jobGraph.getSavepointRestoreSettings
 if (savepointSettings.restoreSavepoint()) {
     try {
@@ -172,7 +172,7 @@ if (savepointSettings.restoreSavepoint()) {
 
 - 然后通知client任务提交成功消息，至此job提交成功，但是job还没启动，继续看；
 
-```
+```java
 jobInfo.notifyClients(
 	decorateMessage(JobSubmitSuccess(jobGraph.getJobID)))
 ```
@@ -183,7 +183,7 @@ jobInfo.notifyClients(
 
 - 先判断jobmanager是否是leader,如果是leader,执行scheduleForExecution方法进行调度；否则删除job。
 
-```
+```java
 if (leaderSessionID.isDefined &&
     leaderElectionService.hasLeadership(leaderSessionID.get)) {
     executionGraph.scheduleForExecution()
@@ -197,7 +197,7 @@ if (leaderSessionID.isDefined &&
 - 接着看下scheduleForExecution是如何调度的。
 - 如果状态成功从created转变成running,则调用GraphManager开始调度。
 
-```
+```java
 if (transitionState(JobStatus.CREATED, JobStatus.RUNNING)) {
 	graphManager.startScheduling();
 }
@@ -205,7 +205,7 @@ if (transitionState(JobStatus.CREATED, JobStatus.RUNNING)) {
 
 - GraphManager内部其实是使用了graphManagerPlugin的onSchedulingStarted方法；
 
-```
+```java
 public void startScheduling() {
 		LOG.info("Start scheduling execution graph with graph manager plugin: {}",
 			graphManagerPlugin.getClass().getName());
@@ -217,7 +217,7 @@ public void startScheduling() {
 
 - EagerSchedulingPlugin，调度开始后，启动所有顶点；
 
-```
+```java
 	public void onSchedulingStarted() {
 		final List<ExecutionVertexID> verticesToSchedule = new ArrayList<>();
 		for (JobVertex vertex : jobGraph.getVerticesSortedTopologicallyFromSources()) {
@@ -231,7 +231,7 @@ public void startScheduling() {
 
 - RunningUnitGraphManagerPlugin，根据runningUnit安排作业；
 
-```
+```java
 public void onSchedulingStarted() {
 	runningUnitMap.values().stream()
     	.filter(LogicalJobVertexRunningUnit::allDependReady)
@@ -242,7 +242,7 @@ public void onSchedulingStarted() {
 
 - StepwiseSchedulingPlugin，首先启动源顶点，并根据其可消耗输入启动下游顶点；
 
-```
+```java
 public void onSchedulingStarted() {
 	final List<ExecutionVertexID> verticesToSchedule = new ArrayList<>();
     for (JobVertex vertex : jobGraph.getVerticesSortedTopologicallyFromSources()) {
@@ -258,7 +258,7 @@ public void onSchedulingStarted() {
 
 上面三种plugin不同是调度vertice的顺序，但是vertice调度方法是一样的，最终都是调用ExecutionGraphVertexScheduler的scheduleExecutionVertices方法；
 
-```
+```java
 public class ExecutionGraphVertexScheduler implements VertexScheduler {
     public void scheduleExecutionVertices(Collection<ExecutionVertexID> 			         verticesToSchedule) {
         synchronized (executionVerticesToBeScheduled) {
@@ -274,7 +274,7 @@ public class ExecutionGraphVertexScheduler implements VertexScheduler {
 
 - 继续深入scheduleVertices方法，该方法是在调度之前检查vertice健康状态，如果都没问题，则调用schedule(vertices)方法；
 
-```\
+```java
 public void scheduleVertices(Collection<ExecutionVertexID> verticesToSchedule) {
 
 		try {
@@ -302,7 +302,7 @@ public void scheduleVertices(Collection<ExecutionVertexID> verticesToSchedule) {
 
   - 为每个vertice准备调度的资源：ScheduledUnit，SlotProfile
 
-  ```
+  ```java
   checkState(state == JobStatus.RUNNING, "job is not running currently");
   		final boolean queued = allowQueuedScheduling;
   		List<SlotRequestId> slotRequestIds = new ArrayList<>(vertices.size());
@@ -326,7 +326,7 @@ public void scheduleVertices(Collection<ExecutionVertexID> verticesToSchedule) {
 
   - 分配slot
 
-  ```
+  ```java
   List<CompletableFuture<LogicalSlot>> allocationFutures =
   				slotProvider.allocateSlots(slotRequestIds, scheduledUnits, queued, slotProfiles, allocationTimeout);
   		List<CompletableFuture<Void>> assignFutures = new ArrayList<>(slotRequestIds.size());
@@ -360,7 +360,7 @@ public void scheduleVertices(Collection<ExecutionVertexID> verticesToSchedule) {
 
   - 所有的slot分配完成才算完成，有一个失败便算失败。所有slot分配成功之后，异步执行所有Exceution的deploy方法。
 
-  ```
+  ```java
   CompletableFuture<Void> currentSchedulingFuture = allAssignFutures
       .异常处理
       .handleAsync(
@@ -386,11 +386,11 @@ public void scheduleVertices(Collection<ExecutionVertexID> verticesToSchedule) {
   }, futureExecutor);
   ```
 
-#### 3.2，**通知TaskManager，将每个vertice部署在分配好的资源中**
+#### 3.2，通知TaskManager，将每个vertice部署在分配好的资源中
 
 下面深入deploy方法，deploy负责将Execution部署到先前分配好的资源上，提交task到taskManagerGateway，然后由taskManagerGateway转发给Taskmanager。TaskManager如何处理SubmitTask消息之后分析。
 
-```
+```java
 public void deploy() throws JobException {
 		...一系列检查保证slot可用
 		executor.execute(

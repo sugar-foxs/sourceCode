@@ -6,7 +6,7 @@
 
 - 启动jobManager 
 
-  ```
+  ```java
   try {
     SecurityUtils.getInstalledContext.runSecured(new Callable[Unit] {
       override def call(): Unit = {
@@ -24,7 +24,7 @@
 
 - 深入runJobManager方法，下面着重看下这个方法：
 
-```
+```java
 def runJobManager(
   configuration: Configuration,
   executionMode: JobManagerMode,
@@ -86,7 +86,7 @@ webMonitorOption.foreach{
 
 - 看下startJobManagerActors方法，启动了哪些组件
 
-```
+```java
     。。。
     try {
       // 启动Jobmanager actor
@@ -162,7 +162,7 @@ webMonitorOption.foreach{
 
 - 继续深入到startJobManagerActors方法
 
-```
+```java
 def startJobManagerActors(
       configuration: Configuration,
       actorSystem: ActorSystem,

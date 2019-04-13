@@ -1,12 +1,12 @@
-edge是否是chain中的同时满足条件：
-1,下游streamNode的输入边为1；
-2，输入输出node的operator不为null；
-3，输入输出node在同一个slot group；
-4,outOperator的成链规则是ChainingStrategy.ALWAYS；
-5，输入operator的成链规则是ChainingStrategy.HEAD或者ChainingStrategy.ALWAYS；
-6，channelselector是ForwardPartitioner类型
-7，输入输出node并行度相同；
-8，isChainingEnabled;
+# 判断edge是否属于chain需要同时满足的条件：
+- 1,下游streamNode的输入边为1；
+- 2，输入输出node的operator不为null；
+- 3，输入输出node在同一个slot group；
+- 4,outOperator的成链规则是ChainingStrategy.ALWAYS；
+- 5，输入operator的成链规则是ChainingStrategy.HEAD或者ChainingStrategy.ALWAYS；
+- 6，channelselector是ForwardPartitioner类型
+- 7，输入输出node并行度相同；
+- 8，isChainingEnabled;
 
 
 
@@ -16,9 +16,9 @@ output数量大于1，返回BroadcastingOutputCollector(outputs)。BroadcastingO
 2,有selector
 默认使用DirectedOutput，包含了所有的outputs和selectors.
 
-所以operator的output实际做事的是两种：RecordWriterOutPut,ChainingOutput
+所以operator的output基础类型是两种：RecordWriterOutPut,ChainingOutput
 
-看下四种output如何将数据往下游传输：
+看下Output如何将数据往下游传输：
 1，RecordWriterOutPut:
 - 传输record
 -> out.collect(record);
@@ -39,14 +39,6 @@ public void randomEmit(T record) throws IOException, InterruptedException {
 	sendToTarget(record, rng.nextInt(numChannels));
 }
 latencyMarker随机发送一个channel。
-
-- 那么channel是什么呢？
-是RunEnvironment中ResultPartitionWriter数组，在Task中是ResultPartition数组，继承自ResultPartitionWriter，
-这个ResultPartition又是由ResultPartitionDeploymentDescriptor转变而来，再来看下ResultPartitionDeploymentDescriptor是怎么来的；
-是TaskManager中submitTask的入参。是ExecutionVertex的createDeploymentDescriptor方法创建出来的，
-IntermediateResultPartition
-IntermediateResult
-
 
 2,ChainingOutput 在operatorChain中的operator间传输
 - 传输record

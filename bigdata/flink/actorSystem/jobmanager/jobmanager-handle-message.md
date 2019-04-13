@@ -4,7 +4,7 @@ jobmanager创建成功之后，如何处理消息呢？JobManager继承自FlinkA
 
 - handleMessage方法，包含以下类型消息，具体每个消息做什么工作以后添加。
 
-  ```
+  ```java
   //通知哪个jobManager作为leader
   case GrantLeadership(newLeaderSessionID) 
   //撤销leader

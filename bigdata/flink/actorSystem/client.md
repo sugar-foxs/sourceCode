@@ -4,7 +4,7 @@ client提交job到JobManager的过程：
 
 1，ClusterClient的run方法，传入了JobGraph
 
-```
+```java
 public JobExecutionResult run(JobGraph jobGraph, ClassLoader classLoader) throws ProgramInvocationException {
 		...
 		try {
@@ -28,7 +28,7 @@ JobClient负责将一个JobGraph发送给JobManager。如果作业被顺利执�
 
 2，追溯到JobClient的submitJobAndWait方法，看看JobClient是如何提交job的，其中调用了submitJob方法：
 
-```
+```java
 public static JobListeningContext submitJob(
 			ActorSystem actorSystem,
 			Configuration config,
@@ -100,7 +100,7 @@ public void handleCustomMessage(Object message) {
 
 4，深入到创建JobSubmissionClientActor的tryToSubmitJob方法中，
 
-```
+```java
 private void tryToSubmitJob() {
 		final ActorGateway jobManagerGateway = new AkkaActorGateway(jobManager, leaderSessionID);
 		final AkkaJobManagerGateway akkaJobManagerGateway = new AkkaJobManagerGateway(jobManagerGateway);
