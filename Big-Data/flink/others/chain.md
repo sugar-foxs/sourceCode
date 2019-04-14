@@ -60,39 +60,6 @@ operator.processLatencyMarker(latencyMarker);
 ## channelSlector
 
 
-## 
-StreamGraph -> StreamingPlan -> FlinkPlan
-               OptimizePlan  -> FlinkPlan
-
-Environment.execute 
--> StreamGraphGenerator生成StreamGraph 
--> ClustClient.run 
--> StreamingJobGraphGenerator将streamGraph转JobGraph 
--> client submit job 
--> JobSubmissionClientActor 
--> JObManager接收到jobGraph, ExecutionGraphBuilder将jobGraph转ExecutionGraph 
--> ExecutionGraph.scheduleForExecution 
--> scheduleEager/scheduleLazy 
--> allocateResourcesForAll分配资源
--> 所有execution.deploy()
--> 通过TaskManagerGateway向taskamanager提交task(以TaskDeploymentDescriptor形式)
--> taskmanager准备好需要的东西，启动task
--> 进入Task run方法
-	cas 状态从created到deploying
-	-> 下载jar
-	-> 使用网络栈注册任务
-	-> 启动分布式缓存在后台复制 
-	-> cas 任务状态改为running
-	-> 加载并实例化任务的可调用代码
-   		-> 将runtimeEnvironment作为参数传入构造器，实例化task
-	-> 进入具体每个task的invoke方法，例如：Streamtask.invoke()
-		-> 生成operatorChain
-		-> 执行run方法，例如SourceStreamTask.run
-			-> headOperator.run,定时生成latencyMarker,传递给下一个operator.
-	-> execution执行之后，关闭ResultPartition
-	-> cas 任务状态改为finished
-
-
 所以需要清楚operator的连接方式才能知道如何传输数据的。
 
 # operatorChain，在同一个线程内的operator之键

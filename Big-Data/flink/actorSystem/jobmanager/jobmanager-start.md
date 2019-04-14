@@ -5,22 +5,21 @@
 - 首先做一些检查，加载日志环境和配置
 
 - 启动jobManager 
-
-  ```java
-  try {
-    SecurityUtils.getInstalledContext.runSecured(new Callable[Unit] {
-      override def call(): Unit = {
-        runJobManager(
-          configuration,
-          executionMode,
-          externalHostName,
-          portRange)
-      }
-    })
-  } catch {
-    。。。
-  }
-  ```
+```java
+try {
+  SecurityUtils.getInstalledContext.runSecured(new Callable[Unit] {
+    override def call(): Unit = {
+      runJobManager(
+        configuration,
+        executionMode,
+        externalHostName,
+        portRange)
+    }
+  })
+} catch {
+  。。。
+}
+```
 
 - 深入runJobManager方法，下面着重看下这个方法：
 
@@ -31,8 +30,6 @@ def runJobManager(
   listeningAddress: String,
   listeningPort: Int)
 : Unit = {
-
-。。。
 
 // 首先启动JobManager ActorSystem，因为如果端口0之前被选中了，startActorSystem方法决定了使用哪个端口号，并进行相应的更新。
 val jobManagerSystem = startActorSystem(
@@ -81,13 +78,12 @@ webMonitorOption.foreach{
         LOG.warn("Could not properly stop the web monitor.", t)
     }
 }
-...
 ```
 
 - 看下startJobManagerActors方法，启动了哪些组件
 
 ```java
-    。。。
+    ...
     try {
       // 启动Jobmanager actor
       val (jobManager, archive) = startJobManagerActors(
@@ -133,12 +129,11 @@ webMonitorOption.foreach{
           "TaskManager_Process_Reaper")
       }
 
-      。。。省略了webmonitor
-
+      // 省略了webmonitor
       val resourceManager =
         resourceManagerClass match {
           case Some(rmClass) =>
-            //启动Resource manager actor
+            //启动ResourceManager
             Option(
               FlinkResourceManager.startResourceManagerActors(
                 configuration,
@@ -231,3 +226,5 @@ def startJobManagerActors(
 ```
 
 createJobManagerComponents方法创建了jobmanager组件，包括了存储、备份等策略的组件实现，还包括scheduler、submittedJobGraphs，分别负责job的调度和作业的提交。最后返回archive和jobmanager。
+
+- taskmanager和resourcemanager的启动在其他文章中介绍。
