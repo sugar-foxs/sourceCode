@@ -202,3 +202,5 @@ public StreamOperatorStateContext streamOperatorStateContext(
     - 每个子类的个性初始化
     - 初始化所有operator状态
     - 开启所有operator
+
+- StreamTask子类实现了run方法的有SourceStreamTask、OneInputStreamTask、TwoInputStreamTask、StoppableSourceStreamTask、StreamIterationHead。后面分别介绍。
