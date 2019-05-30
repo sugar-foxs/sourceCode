@@ -97,18 +97,36 @@ function combineReducers(reducers) {
     }
     let hasChanged = false;
     const nextState = {};
-    for(let i = 0; i<finalReducers.length; i++){
-        const key = finalReducerKeys[i]
-        const reducer = finalReducers[key]
-        const previousStateForKey = state[key]
-        const nextStateForKey = reducer(previousStateForKey,action)
-        if(typeof nextStateForKey === 'undefined') {
-            const errorMessage = getUnexpectedStateShapeWarningMessage(key,action)
-            throw new Error(errorMessage)
-        }
-        nextState[key] = nextStateForKey
-        hasChanged = hasChanged || nextStateForKey !== previousStateForKey
+    for (let i = 0; i < finalReducers.length; i++) {
+      const key = finalReducerKeys[i];
+      const reducer = finalReducers[key];
+      const previousStateForKey = state[key];
+      const nextStateForKey = reducer(previousStateForKey, action);
+      if (typeof nextStateForKey === "undefined") {
+        const errorMessage = getUnexpectedStateShapeWarningMessage(key, action);
+        throw new Error(errorMessage);
+      }
+      nextState[key] = nextStateForKey;
+      hasChanged = hasChanged || nextStateForKey !== previousStateForKey;
     }
-    return hasChanged ? nextState : state
+    return hasChanged ? nextState : state;
   };
+}
+
+export default function createStore(reducer, initialState, enhancer) {
+    if(typeof enhancer !== 'undefined') {
+        if(typeof enhancer !=='function') {
+            throw new Error('expected to be function')
+        }
+        return enhancer(createStore)(reducer, initialState)
+    }
+    var isDispatching = false
+    var currentReducer = reducer
+    try {
+        isDispatching = true
+        currentState = currentReducer(currentState,action)
+    } finally {
+        isDispatching = false
+    }
+    
 }
