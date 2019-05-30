@@ -5,3 +5,5 @@
     - todolist 
         - react-imvc，实现简单的服务端渲染
         - react-loop，使用react-loops替代数组和遍历器
+        - relite，公司用的react状态管理
+        - redux，react状态管理工具
