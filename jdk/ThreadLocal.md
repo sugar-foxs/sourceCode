@@ -99,7 +99,7 @@ private Entry getEntryAfterMiss(ThreadLocal<?> key, int i, Entry e) {
 ```
 
 ### 总结
-- ThreadLocal将数据存放在内部类ThreadLocalMap中。
+- ThreadLocal将数据存放在内部类ThreadLocalMap中，每个线程都有一个ThreadLocalMap变量。所以每个线程都保存了自己的变量副本。
 - ThreadLocalMap内部是一个Entry数组,Entry继承自WeakReference，Entry内部的value用来存放通过ThreadLocal的set方法传递的值。
 - 在ThreadLocalMap的set，get，remove方法中，会对key为null的项进行清理。
 

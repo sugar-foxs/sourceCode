@@ -52,7 +52,7 @@ val restartStrategy =
 ```
 
 - 接着，获取ExecutionGraph对象的实例。首先尝试从缓存中查找，如果缓存中存在则直接返回，否则直接创建然后加入缓存；
-ExecutionGraph的创建过程在另一篇文章中介绍。
+- ExecutionGraph的创建过程在另一篇文章中介绍。
 ```java
 val registerNewGraph = currentJobs.get(jobGraph.getJobID) match {
     case Some((graph, currentJobInfo)) =>

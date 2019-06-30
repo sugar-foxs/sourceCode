@@ -8,7 +8,7 @@
 
 - Keyed State
 
-Keyed state只能在KeyedStream的function和operator中使用。可以将Keyed State视为已分区或sharded，每个key只有一个状态分区。每个keyed state在逻辑上绑定到<parallel-operator-instance，key>的唯一复合，并且由于每个键只属于一个并行实例，我们可以将其简单地视为<operator，key >。
+Keyed state只能在KeyedStream的function和operator中使用。可以将Keyed State视为已分区或sharded，每个key只有一个状态分区。每个keyed state在逻辑上绑定到<parallel-operator-instance，key>的唯一复合，并且由于每个键只属于一个并行实例，我们可以将其简单地视为<operator，key>。
 
 Keyed state进一步组织成key group，是Flink可以重新分配key state的原子单元;key group数量与定义的最大并行度完全一样多。在执行期间，keyed operator的每个并行实例都使用一个或多个group的key。
 
@@ -26,7 +26,7 @@ managed状态由Flink运行时控制的数据结构来表示，例如内部哈�
 
 raw状态是operators保留在自己的数据结构中的状态。当启用检查点时，它们只会将一个字节序列写入检查点。 Flink对状态的数据结构一无所知，只看到原始字节。
 
-所有数据流功能都可以使用managed状态，但raw状态接口只能在实现operator时使用。建议使用managed状态（而不是raw状态），因为在mamanged状态下，Flink能够在并行度更改时自动重新分配状态，并且还可以进行更好的内存管理。
+所有数据流功能都可以使用managed状态，但raw状态接口只能在实现operator时使用。建议使用managed状态（而不是raw状态），因为在managed状态下，Flink能够在并行度更改时自动重新分配状态，并且还可以进行更好的内存管理。
 
 ### 3，Managed keyed state
 
