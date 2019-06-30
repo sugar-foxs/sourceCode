@@ -4,7 +4,7 @@ const isAbsoluteUrl = url => {
   return url.indexOf("http") === 0 || url.indexOf("//") === 0;
 };
 const toJSON = (response) => {
-  if(!response.ok || response.status !== 200){
+  if (!response.ok || response.status !== 200) {
     return Promise.reject(new Error(response.statusText))
   }
   return response.json()
@@ -138,32 +138,32 @@ export default class Controller {
       fetchData = fetchData.then(toJSON)
     }
 
-    if(typeof options.timeout === 'number') {
+    if (typeof options.timeout === 'number') {
       fetchData = timeoutReject(fetchData, options.timeout)
     }
     return fetchData
   }
 
-  get(url,params,options){
+  get(url, params, options) {
     let { API } = this
-    if(API && Object.prototype.hasOwnProperty.call(API,url)){
+    if (API && Object.prototype.hasOwnProperty.call(API, url)) {
       url = API[url]
     }
-    if(params) {
-      let prefix = url.includes('?') ? '&':'?'
+    if (params) {
+      let prefix = url.includes('?') ? '&' : '?'
       url += prefix + querystring.stringify(params)
     }
     options = {
       ...options,
-      method:'GET'
+      method: 'GET'
     }
-    return this.fetch(url,options)
+    return this.fetch(url, options)
   }
 
-  post(url,data,options){
+  post(url, data, options) {
     options = {
       ...options,
-      method:'POST',
+      method: 'POST',
       body: JSON.stringify(data)
     }
     return this.fetch(url, options)
@@ -171,28 +171,28 @@ export default class Controller {
   fetchPreload(preload) {
     preload = preload || this.preload
     let keys = Object.keys(preload)
-    if(keys.length === 0) {
-      return 
+    if (keys.length === 0) {
+      return
     }
-    let {context } = this
+    let { context } = this
     let list = keys.map(name => {
-      if(context.preload[name]) return 
+      if (context.preload[name]) return
       let url = preload[name]
-      if(isAbsoluteUrl(url)){
-        if(context.isServer){
+      if (isAbsoluteUrl(url)) {
+        if (context.isServer) {
           url = context.serverPublicPath + url
-        } else if (context.isClient){
-          url = context.publicPath+url
+        } else if (context.isClient) {
+          url = context.publicPath + url
         }
       }
       return fetch(url)
-      .then(toText)
-      .then(content => {
-        if(url.split('?')[0].indexOf('.css')!==-1){
-          content = content.replace(/\r+/g,'')
-        }
-        context.preload[name]=content
-      })
+        .then(toText)
+        .then(content => {
+          if (url.split('?')[0].indexOf('.css') !== -1) {
+            content = content.replace(/\r+/g, '')
+          }
+          context.preload[name] = content
+        })
     })
     return Promise.all(list)
   }
