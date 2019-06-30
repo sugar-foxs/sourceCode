@@ -18,7 +18,7 @@ case SubmitJob(jobGraph, listeningBehaviour) =>
       submitJob(jobGraph, jobInfo)
 ```
 
-- 深入submitJob方法，首先判断jobGraph是否为空，如果为空，返回JobResultFailure消息；
+- 深入submitJob方法，首先判断jobGraph是否为空，如果为空，将JobResultFailure消息通知所有client；
 
 ```java
 if (jobGraph == null) {
@@ -116,7 +116,7 @@ jobInfo.clients foreach {
 
 ### 2，**从CheckpointedState，或者Savepoint恢复**
 
-- 如果是恢复的job，从最新的checkpoint中恢复；
+- 如果是恢复job，从最新的checkpoint中恢复；
 
 ```java
 if (isRecovery) {
@@ -124,7 +124,7 @@ if (isRecovery) {
 }
 ```
 
-- 或者获取savepoint配置，如果配置了savepoint，便从savepoint中恢复；
+- 如果不是恢复job，获取savepoint配置，如果配置了savepoint，便从savepoint中恢复；
 ```java
 val savepointSettings = jobGraph.getSavepointRestoreSettings
 if (savepointSettings.restoreSavepoint()) {
@@ -180,7 +180,7 @@ switch (scheduleMode) {
 }
 ```
 - 上面两种模式只是决定了一开始哪些ExecutionVertex被调度，LAZY_FROM_SOURCES模式只启动source, EAGER模式启动所有的。
-- 决定了哪些EcecutionVertex被调度之后，首先为它们分配资源，allocateAndAssignSlotForExecution方法负责分配。
+- 决定了哪些EcecutionVertex被调度之后，首先为它们分配资源，调用Execution的allocateAndAssignSlotForExecution方法进行分配。
 ```java
 public CompletableFuture<Execution> allocateAndAssignSlotForExecution(
 		SlotProvider slotProvider,
