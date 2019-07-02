@@ -1,6 +1,12 @@
 # Client
 
 ## client提交job到JobManager的过程：
+ClusterClient有这几种具体实现：MiniClusterClient，StandaloneClusterClient，RestClusterClient，YarnClusterClient。
+- MiniClusterClient用于本地调试，内部使用MiniCluster提交任务。
+- StandaloneClusterClient和YarnClusterClient提交任务都是使用的父类ClusterClient的run和runDetached方法。
+- RestClusterClient使用RestClient（http）提交任务。
+
+主要看下ClusterClient的run方法。runDetached方法与run不同的是以分离模式运行，提交任务后client会关闭自己。
 - 1，ClusterClient的run方法，传入了JobGraph
 ```java
 public JobExecutionResult run(JobGraph jobGraph, ClassLoader classLoader) throws ProgramInvocationException {
@@ -94,7 +100,7 @@ public void handleCustomMessage(Object message) {
 }
 ```
 
-该SubmitJobAndWait消息被JobClientActor接收后，最终通过调用tryToSubmitJob方法触发真正的提交动作。
+该SubmitJobAndWait消息被JobClientActor接收后，最终通过调用tryToSubmitJob方法触发真正的提交动作，前提是知道jobmanager leader。
 
 - 4，深入到创建JobSubmissionClientActor的tryToSubmitJob方法中
 
@@ -151,7 +157,7 @@ private void tryToSubmitJob() {
 
 	1，将用户程序相关的Jar包上传至JobManager；
 
-	2，给JobManager Actor发送封装JobGraph的SubmitJob消息；
+	2，给JobManager Actor发送封装JobGraph的SubmitJob消息，消息中包含了jobGraph；
 
 之后，JobManager Actor会接收到来自JobClientActor的SubmitJob消息，进而触发submitJob方法，具体jobManager如何处理SubmitJob消息的在另一篇中介绍。
 

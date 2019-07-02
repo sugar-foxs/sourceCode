@@ -2,170 +2,169 @@
 
 jobManager 在接收到 submitJob 消息之后，会先根据 jobGraph 生成 ExecutionGraph。
 
-1，使用 ExecutionGraphBuilder 的 buildGraph 方法生成 ExecutionGraph；
+- 1，使用 ExecutionGraphBuilder 的 buildGraph 方法生成 ExecutionGraph；
 
-```
+```java
 executionGraph = ExecutionGraphBuilder.buildGraph(
-          executionGraph,
-          jobGraph,
-          flinkConfiguration,
-          futureExecutor,
-          ioExecutor,
-          scheduler,
-          userCodeLoader,
-          checkpointRecoveryFactory,
-          Time.of(timeout.length, timeout.unit),
-          restartStrategy,
-          jobMetrics,
-          numSlots,
-          blobServer,
-          resultPartitionLocationTrackerProxy,
-          Time.milliseconds(allocationTimeout),
-          log.logger)
+	executionGraph,
+	jobGraph,
+	flinkConfiguration,
+	futureExecutor,
+	ioExecutor,
+	scheduler,
+	userCodeLoader,
+	checkpointRecoveryFactory,
+	Time.of(timeout.length, timeout.unit),
+	restartStrategy,
+	jobMetrics,
+	numSlots,
+	blobServer,
+	resultPartitionLocationTrackerProxy,
+	Time.milliseconds(allocationTimeout),
+	log.logger)
 ```
 
-2，深入到 buildGraph 方法，如果 Execution 不存在，new 一个新的 Execution;
+- 2，深入到 buildGraph 方法，如果 Execution 不存在，new 一个新的 Execution;
 
-```
+```java
 executionGraph = (prior != null) ? prior :
-				new ExecutionGraph(
-					jobInformation,
-					futureExecutor,
-					ioExecutor,
-					rpcTimeout,
-					restartStrategy,
-					failoverStrategy,
-					slotProvider,
-					classLoader,
-					blobWriter,
-					resultPartitionLocationTrackerProxy,
-					allocationTimeout,
-					metrics,
-					jobManagerConfig);
+	new ExecutionGraph(
+		jobInformation,
+		futureExecutor,
+		ioExecutor,
+		rpcTimeout,
+		restartStrategy,
+		failoverStrategy,
+		slotProvider,
+		classLoader,
+		blobWriter,
+		resultPartitionLocationTrackerProxy,
+		allocationTimeout,
+		metrics,
+		jobManagerConfig);
 ```
 
-3，设置一些基础属性:allowQueuedScheduling,jsonPlan;
+- 3，设置一些基础属性:allowQueuedScheduling,jsonPlan
 
-```
+```java
 executionGraph.setQueuedSchedulingAllowed(jobGraph.getAllowQueuedScheduling());
 executionGraph.setJsonPlan(JsonPlanGenerator.generatePlan(jobGraph));
 ```
 
-4，attachJobGraph，生成 Graph 的节点和边
-
-```
+- 4，attachJobGraph，生成 Graph 的节点和边
+```java
 // topologically sort the job vertices and attach the graph to the existing one
-		List<JobVertex> sortedTopology = jobGraph.getVerticesSortedTopologicallyFromSources();
-		if (log.isDebugEnabled()) {
-			log.debug("Adding {} vertices from job graph {} ({}).", sortedTopology.size(), jobName, jobId);
-		}
-		executionGraph.attachJobGraph(sortedTopology);
+List<JobVertex> sortedTopology = jobGraph.getVerticesSortedTopologicallyFromSources();
+if (log.isDebugEnabled()) {
+	log.debug("Adding {} vertices from job graph {} ({}).", sortedTopology.size(), jobName, jobId);
+}
+executionGraph.attachJobGraph(sortedTopology);
 ```
 
 深入到 attachJobGraph 方法，将 JobVertex 封装成 ExecutionJobVertex,然后再用 edge 将节点连起来；
 
-```
+```java
 public void attachJobGraph(List<JobVertex> topologicallySorted) throws JobException {
 
-		final ArrayList<ExecutionJobVertex> newExecJobVertices = new ArrayList<>(topologicallySorted.size());
-		inal long createTimestamp = System.currentTimeMillis();
+	final ArrayList<ExecutionJobVertex> newExecJobVertices = new ArrayList<>(topologicallySorted.size());
+	inal long createTimestamp = System.currentTimeMillis();
 
-		for (JobVertex jobVertex : topologicallySorted) {
+	for (JobVertex jobVertex : topologicallySorted) {
 
-			if (jobVertex.isInputVertex() && !jobVertex.isStoppable()) {
-				this.isStoppable = false;
-			}
-
-			// 在新建ExecutionJobVertex时已经把中间结果集都初始化好。
-			ExecutionJobVertex ejv = new ExecutionJobVertex(
-				this,
-				jobVertex,
-				1,
-				rpcTimeout,
-				globalModVersion,
-				createTimestamp);
-            //把节点用edge相连
-			ejv.connectToPredecessors(this.intermediateResults);
-
-			//ExecutionJobVertex建好并与input建立好edge,存入map中
-			ExecutionJobVertex previousTask = this.tasks.putIfAbsent(jobVertex.getID(), ejv);
-			for (IntermediateResult res : ejv.getProducedDataSets()) {
-				IntermediateResult previousDataSet = 						this.intermediateResults.putIfAbsent(res.getId(), res);
-			}
-			this.verticesInCreationOrder.add(ejv);
-			this.numVerticesTotal += ejv.getParallelism();
-			newExecJobVertices.add(ejv);
+		if (jobVertex.isInputVertex() && !jobVertex.isStoppable()) {
+			this.isStoppable = false;
 		}
 
-		terminationFuture = new CompletableFuture<>();
-		failoverStrategy.notifyNewVertices(newExecJobVertices);
+		// 在新建ExecutionJobVertex时已经把中间结果集都初始化好。
+		ExecutionJobVertex ejv = new ExecutionJobVertex(
+			this,
+			jobVertex,
+			1,
+			rpcTimeout,
+			globalModVersion,
+			createTimestamp);
+		//把节点用edge相连
+		ejv.connectToPredecessors(this.intermediateResults);
+
+		//ExecutionJobVertex建好并与input建立好edge,存入map中
+		ExecutionJobVertex previousTask = this.tasks.putIfAbsent(jobVertex.getID(), ejv);
+		for (IntermediateResult res : ejv.getProducedDataSets()) {
+			IntermediateResult previousDataSet = 						this.intermediateResults.putIfAbsent(res.getId(), res);
+		}
+		this.verticesInCreationOrder.add(ejv);
+		this.numVerticesTotal += ejv.getParallelism();
+		newExecJobVertices.add(ejv);
 	}
+
+	terminationFuture = new CompletableFuture<>();
+	failoverStrategy.notifyNewVertices(newExecJobVertices);
+}
 ```
 
 IntermediateResult 对应一个 Job Edge 的输出下游结果集，一个 IntermediateResult 包含多个 IntermediateResultPartition，一个 IntermediateResultPartition 对应一个并行任务 ExecutionVertex 的输出结果。
 
-深入到 connectToPredecessors，看看是如何连接 ExecutionJobVertex 的；
+- 深入到 connectToPredecessors，看看是如何连接 ExecutionJobVertex 的；
 
-```
+```java
 public void connectToPredecessors(Map<IntermediateDataSetID, IntermediateResult> intermediateDataSets) throws JobException {
-		//获取节点所有输入边
-		List<JobEdge> inputs = jobVertex.getInputs();
-		for (int num = 0; num < inputs.size(); num++) {
-			JobEdge edge = inputs.get(num);
-			//取出JobEdge的source IntermediateResult
-			IntermediateResult ires = intermediateDataSets.get(edge.getSourceId());
+	//获取节点所有输入边
+	List<JobEdge> inputs = jobVertex.getInputs();
+	for (int num = 0; num < inputs.size(); num++) {
+		JobEdge edge = inputs.get(num);
+		//取出JobEdge的source IntermediateResult
+		IntermediateResult ires = intermediateDataSets.get(edge.getSourceId());
 
-			this.inputs.add(ires);
-			//将当前vertex作为consumer注册到IntermediateResult的每个IntermediateResultPartition
-			int consumerIndex = ires.registerConsumer();
+		this.inputs.add(ires);
+		//将当前vertex作为consumer注册到IntermediateResult的每个IntermediateResultPartition
+		int consumerIndex = ires.registerConsumer();
 
-			for (int i = 0; i < parallelism; i++) {
-				ExecutionVertex ev = taskVertices[i];
-				//为每个ExecutionVertex建立到具体IntermediateResultPartition的ExecutionEdge
-				ev.connectSource(num, ires, edge, consumerIndex);
-			}
+		for (int i = 0; i < parallelism; i++) {
+			ExecutionVertex ev = taskVertices[i];
+			//为每个ExecutionVertex建立到具体IntermediateResultPartition的ExecutionEdge
+			ev.connectSource(num, ires, edge, consumerIndex);
 		}
 	}
+}
 ```
 
 深入到 connectSource 方法，
 
-```
+```java
 public void connectSource(int inputNumber, IntermediateResult source, JobEdge edge, int consumerNumber) {
 
-		final DistributionPattern pattern = edge.getDistributionPattern();
-		final IntermediateResultPartition[] sourcePartitions = source.getPartitions();
+	final DistributionPattern pattern = edge.getDistributionPattern();
+	final IntermediateResultPartition[] sourcePartitions = source.getPartitions();
 
-		ExecutionEdge[] edges;
+	ExecutionEdge[] edges;
 
-		switch (pattern) {
-			case POINTWISE:
-				edges = connectPointwise(sourcePartitions, inputNumber);
-				break;
+	switch (pattern) {
+		case POINTWISE:
+			edges = connectPointwise(sourcePartitions, inputNumber);
+			break;
 
-			case ALL_TO_ALL:
-				edges = connectAllToAll(sourcePartitions, inputNumber);
-				break;
+		case ALL_TO_ALL:
+			edges = connectAllToAll(sourcePartitions, inputNumber);
+			break;
 
-			default:
-				throw new RuntimeException("Unrecognized distribution pattern.");
+		default:
+			throw new RuntimeException("Unrecognized distribution pattern.");
 
-		}
-
-		this.inputEdges[inputNumber] = edges;
-
-		// add the consumers to the source
-		// for now (until the receiver initiated handshake is in place), we need to register the
-		// edges as the execution graph
-		for (ExecutionEdge ee : edges) {
-			ee.getSource().addConsumer(ee, consumerNumber);
-		}
 	}
+
+	this.inputEdges[inputNumber] = edges;
+
+	// add the consumers to the source
+	// for now (until the receiver initiated handshake is in place), we need to register the
+	// edges as the execution graph
+	for (ExecutionEdge ee : edges) {
+		ee.getSource().addConsumer(ee, consumerNumber);
+	}
+}
 ```
 
 如果 pattern 是 POINTWISE 的话，看下 connectPointwise 方法：
 
-```
+```java
 private ExecutionEdge[] connectPointwise(IntermediateResultPartition[] sourcePartitions, int inputNumber) {
 		//source节点subtask个数
 		final int numSources = sourcePartitions.length;
@@ -225,7 +224,7 @@ private ExecutionEdge[] connectPointwise(IntermediateResultPartition[] sourcePar
 
 如果 pattern 是 ALL_TO_ALL 的话，看下 connectAllToAll 方法：
 
-```
+```java
 private ExecutionEdge[] connectAllToAll(IntermediateResultPartition[] sourcePartitions, int inputNumber) {
 		ExecutionEdge[] edges = new ExecutionEdge[sourcePartitions.length];
 		for (int i = 0; i < sourcePartitions.length; i++) {
@@ -241,36 +240,35 @@ private ExecutionEdge[] connectAllToAll(IntermediateResultPartition[] sourcePart
 
 5,配置 checkpoint
 
-```
+```java
 JobCheckpointingSettings snapshotSettings = jobGraph.getCheckpointingSettings();
-		if (snapshotSettings != null) {
-			...
-			executionGraph.enableCheckpointing(
-				chkConfig.getCheckpointInterval(),
-				chkConfig.getCheckpointTimeout(),
-				chkConfig.getMinPauseBetweenCheckpoints(),
-				chkConfig.getMaxConcurrentCheckpoints(),
-				chkConfig.getCheckpointRetentionPolicy(),
-				triggerVertices,
-				ackVertices,
-				confirmVertices,
-				hooks,
-				checkpointIdCounter,
-				completedCheckpoints,
-				rootBackend,
-				checkpointStatsTracker);
-		}
+if (snapshotSettings != null) {
+	...
+	executionGraph.enableCheckpointing(
+		chkConfig.getCheckpointInterval(),
+		chkConfig.getCheckpointTimeout(),
+		chkConfig.getMinPauseBetweenCheckpoints(),
+		chkConfig.getMaxConcurrentCheckpoints(),
+		chkConfig.getCheckpointRetentionPolicy(),
+		triggerVertices,
+		ackVertices,
+		confirmVertices,
+		hooks,
+		checkpointIdCounter,
+		completedCheckpoints,
+		rootBackend,
+		checkpointStatsTracker);
+}
 ```
 
 checkpoint 之后专门讨论
 
 6,设置 metrics
 
-```
+```java
 metrics.gauge(RestartTimeGauge.METRIC_NAME, new RestartTimeGauge(executionGraph));
-		metrics.gauge(DownTimeGauge.METRIC_NAME, new DownTimeGauge(executionGraph));
-		metrics.gauge(UpTimeGauge.METRIC_NAME, new UpTimeGauge(executionGraph));
-		metrics.gauge(NumberOfFullRestartsGauge.METRIC_NAME, new NumberOfFullRestartsGauge(executionGraph));
-
-		executionGraph.getFailoverStrategy().registerMetrics(metrics);
+metrics.gauge(DownTimeGauge.METRIC_NAME, new DownTimeGauge(executionGraph));
+metrics.gauge(UpTimeGauge.METRIC_NAME, new UpTimeGauge(executionGraph));
+metrics.gauge(NumberOfFullRestartsGauge.METRIC_NAME, new NumberOfFullRestartsGauge(executionGraph));
+executionGraph.getFailoverStrategy().registerMetrics(metrics);
 ```
