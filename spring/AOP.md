@@ -135,6 +135,8 @@ public Object getProxy(ClassLoader classLoader) {
 		catch ...
 	}
 ```
-MethodInterceptor是Callback的子接口，程序中只要实现MethodInterceptor就可以，实现MethodInterceptor的intercept拦截方法。这个就是aop中的advice。
+- MethodInterceptor是Callback的子接口，程序中只要实现MethodInterceptor就可以，实现MethodInterceptor的intercept拦截方法。这个就是aop中的advice。
+- 生成的代理类会先执行MethodInterceptor的intercept方法，再执行目标类方法。
+- CallBackFilter是用来指定哪个方法使用哪个callBack.
 
 
